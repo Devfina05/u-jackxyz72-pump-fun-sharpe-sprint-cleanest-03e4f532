@@ -1,12 +1,14 @@
 // Pump.fun Sharpe Sprint — deterministic paper replay bot.
 //
 // Idea, in my own words: buy a small, fixed stake in a fresh bonding curve
-// only after it has shown a little real life (a handful of trades, net buying
-// pressure, price not already collapsing), then exit on a rule, not on hope:
-// take profit at +60%, cut at -10%, trail the peak once it is up 25%, and
-// give up after a long hold with no move. Small stakes, at most five open
-// positions, and a portfolio-level pause on new buys after a 25% drawdown
-// keep the hourly Sharpe steady instead of chasing one moonshot.
+// only after it has shown real life (several trades, most recent SOL flow
+// from buys, price at or above where it started, at least 5 SOL of real
+// reserves so the 1%-of-reserve size cap allows a real stake), then exit on
+// a rule, not on hope: take profit at +45%, cut at -9%, trail the peak once
+// it is up 20%, and give up after a long hold with no move. Small stakes,
+// at most five open positions, and a portfolio-level pause on new buys after
+// a 25% drawdown keep the hourly Sharpe steady instead of chasing one
+// moonshot.
 //
 // The interface is the vendor shim's runBot: the hello message carries the
 // seed and caps, every batch carries a slot plus its events, and onBatch
@@ -27,18 +29,18 @@ import {
 } from "./vendor/makefun-bot.ts";
 
 // --- sizing and exits (all in lamports / ratios, no magic from outside) ---
-const STAKE_LAMPORTS = (LAMPORTS_PER_SOL * 4n) / 100n; // 0.04 SOL per coin
-const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 100n; // 0.01 SOL: below this, skip
-const MIN_REAL_SOL_LAMPORTS = (LAMPORTS_PER_SOL * 3n) / 2n; // curve needs >= 1.5 real SOL
-const TAKE_PROFIT = 0.6; // sell all at +60% vs cost
-const STOP_LOSS = -0.1; // sell all at -10% vs cost
-const TRAIL_ARM = 0.25; // trailing exit arms once up 25%
-const TRAIL_GIVEBACK = 0.2; // sell after giving back 20% from the peak
+const STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL per coin
+const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL: below this, skip
+const MIN_REAL_SOL_LAMPORTS = LAMPORTS_PER_SOL * 5n; // curve needs >= 5 real SOL
+const TAKE_PROFIT = 0.45; // sell all at +45% vs cost
+const STOP_LOSS = -0.09; // sell all at -9% vs cost
+const TRAIL_ARM = 0.2; // trailing exit arms once up 20%
+const TRAIL_GIVEBACK = 0.15; // sell after giving back 15% from the peak
 const MAX_HOLD_TRADES = 200; // sell after this many trades with no exit hit
-const ENTRY_MIN_TRADES = 5; // need this many trades before considering a buy
+const ENTRY_MIN_TRADES = 8; // need this many trades before considering a buy
 const ENTRY_WINDOW = 6; // buy-pressure window, in recent trades
-const ENTRY_MIN_BUY_SHARE = 0.5; // at least half of recent SOL flow must be buys
-const ENTRY_MAX_DROP = 0.9; // price must still be >= 90% of its first price
+const ENTRY_MIN_BUY_SHARE = 0.6; // at least 60% of recent SOL flow must be buys
+const ENTRY_MIN_PRICE_RATIO = 1.0; // price must be at or above its first price
 const BUY_SLIPPAGE_BPS = 2000;
 const SELL_SLIPPAGE_BPS = 1000;
 const DRAWDOWN_PAUSE = 0.25; // stop new buys after a 25% portfolio drawdown
@@ -193,7 +195,7 @@ await runBot({
         const curve = state.curves.get(mint);
         if (curve === undefined || curve.complete) continue;
         if (track.trades < ENTRY_MIN_TRADES) continue;
-        if (track.firstPrice <= 0 || track.lastPrice < track.firstPrice * ENTRY_MAX_DROP) {
+        if (track.firstPrice <= 0 || track.lastPrice < track.firstPrice * ENTRY_MIN_PRICE_RATIO) {
           continue;
         }
         // Net buying pressure over the recent window.
