@@ -12,8 +12,8 @@ hourly Sharpe ratio — steady, controlled gains beat one lucky moonshot.
 ## Strategy
 
 - **Early, filtered entry:** buy a fixed 0.04 SOL stake in a fresh bonding
-  curve only after at least 6 trades, with at least half of recent SOL flow
-  from buys, price still within 10% of its first price, and at least 3 SOL
+  curve only after at least 12 trades, with at least 80% of recent SOL flow
+  from buys, price at least 10% above its first price, and at least 10 SOL
   of real reserves (so the 1%-of-reserve size cap allows a real stake).
   Each coin is decided once, in batch order.
 - **Rule-based exits:** take profit at +35%, stop loss at −12%, a trailing
