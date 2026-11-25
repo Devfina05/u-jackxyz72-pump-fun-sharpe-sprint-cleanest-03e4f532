@@ -1,16 +1,16 @@
 // Pump.fun Sharpe Sprint — deterministic paper replay bot.
 //
 // Idea, in my own words: buy a small, fixed stake in a fresh bonding curve
-// only after it has proven itself (at least 12 trades, at least 80% of
-// recent SOL flow from buys, price at least 10% above where it started, at
-// least 10 SOL of real reserves), then exit on a rule, not on hope: take
-// profit at +35%, cut at -12%, trail the peak once it is up 15%, and give
-// up after 120 trades with no move. Prices on these curves typically rise
-// then decay (holding to the end loses ~40% on the median coin in the dev
-// data), so exits have to fire into strength, and the 2-slot latency means
-// a rejected sell is retried rather than leaving a position stuck. At most
-// five open positions, and a portfolio-level pause on new buys after a 25%
-// drawdown, keep the hourly Sharpe steady instead of chasing one moonshot.
+// only after it has shown a little real life (a handful of trades, net buying
+// pressure, price not already collapsing, at least 3 SOL of real reserves),
+// then exit on a rule, not on hope: take profit at +35%, cut at -12%,
+// trail the peak once it is up 15%, and give up after 120 trades with no
+// move. Prices on these curves typically rise then decay (holding to the
+// end loses ~40% on the median coin in the dev data), so exits have to fire
+// into strength, and the 2-slot latency means a rejected sell is retried
+// rather than leaving a position stuck. At most five open positions, and a
+// portfolio-level pause on new buys after a 25% drawdown, keep the hourly
+// Sharpe steady instead of chasing one moonshot.
 //
 // The interface is the vendor shim's runBot: the hello message carries the
 // seed and caps, every batch carries a slot plus its events, and onBatch
@@ -33,20 +33,18 @@ import {
 // --- sizing and exits (all in lamports / ratios, no magic from outside) ---
 const STAKE_LAMPORTS = (LAMPORTS_PER_SOL * 4n) / 100n; // 0.04 SOL per coin
 const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 50n; // 0.02 SOL: below this, skip
-const MIN_REAL_SOL_LAMPORTS = LAMPORTS_PER_SOL * 10n; // curve needs >= 10 real SOL
+const MIN_REAL_SOL_LAMPORTS = LAMPORTS_PER_SOL * 3n; // curve needs >= 3 real SOL
 const TAKE_PROFIT = 0.35; // sell all at +35% vs cost
 const STOP_LOSS = -0.12; // sell all at -12% vs cost
 const TRAIL_ARM = 0.15; // trailing exit arms once up 15%
 const TRAIL_GIVEBACK = 0.15; // sell after giving back 15% from the peak
 const MAX_HOLD_TRADES = 120; // sell after this many trades with no exit hit
-const ENTRY_MIN_TRADES = 12; // need this many trades before considering a buy
+const ENTRY_MIN_TRADES = 6; // need this many trades before considering a buy
 const ENTRY_WINDOW = 6; // buy-pressure window, in recent trades
-const ENTRY_MIN_BUY_SHARE = 0.8; // at least 80% of recent SOL flow must be buys
-const ENTRY_MIN_PRICE_RATIO = 1.1; // price must be at least 10% above its first price
+const ENTRY_MIN_BUY_SHARE = 0.5; // at least half of recent SOL flow must be buys
+const ENTRY_MIN_PRICE_RATIO = 0.9; // price must still be >= 90% of its first price
 const BUY_SLIPPAGE_BPS = 2000;
-const SELL_SLIPPAGE_BPS = 100; // tight on sells: only take the exit price if it
-// is still there after the 2-slot latency; a rejected sell is retried on the
-// next batch instead of filling into a dump at a much worse price.
+const SELL_SLIPPAGE_BPS = 1000;
 const DRAWDOWN_PAUSE = 0.25; // stop new buys after a 25% portfolio drawdown
 
 interface CoinTrack {
