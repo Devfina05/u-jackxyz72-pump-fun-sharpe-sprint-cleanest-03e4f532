@@ -1,16 +1,16 @@
 // Pump.fun Sharpe Sprint — deterministic paper replay bot.
 //
 // Idea, in my own words: buy a small, fixed stake in a fresh bonding curve
-// only after it has shown real life (several trades, at least 80% of recent
-// SOL flow from buys, price at or above where it started, at least 10 SOL
-// of real reserves so the 1%-of-reserve size cap allows a real stake), then
-// exit on a rule, not on hope: take profit at +100%, cut at -5%, trail the
-// peak once it is up 10%, and give up after a long hold with no move. Small
-// stakes, at most five open positions, and a portfolio-level pause on new
-// buys after a 25% drawdown keep the hourly Sharpe steady instead of chasing
-// one moonshot. An offline sweep of the dev data (with fills delayed to
-// model the 2-slot latency) picked these numbers over tighter take-profits
-// and looser entries, both of which lost money after fees.
+// only after it has proven itself (at least 12 trades, at least 80% of
+// recent SOL flow from buys, price at least 10% above where it started, at
+// least 10 SOL of real reserves), then exit on a rule, not on hope: take
+// profit at +60%, cut at -15%, trail the peak once it is up 25%, and give
+// up after a long hold with no move. Only three positions at a time: the
+// dev grades showed churn is what loses money after fees (the loosest
+// version traded 463 coins and lost 1.22 SOL; the tightest traded 32 and
+// lost 0.15), so this version trades few, proven coins and rides them.
+// A portfolio-level pause on new buys after a 25% drawdown keeps the hourly
+// Sharpe steady instead of chasing one moonshot.
 //
 // The interface is the vendor shim's runBot: the hello message carries the
 // seed and caps, every batch carries a slot plus its events, and onBatch
@@ -34,15 +34,16 @@ import {
 const STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL per coin
 const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL: below this, skip
 const MIN_REAL_SOL_LAMPORTS = LAMPORTS_PER_SOL * 10n; // curve needs >= 10 real SOL
-const TAKE_PROFIT = 1.0; // sell all at +100% vs cost
-const STOP_LOSS = -0.05; // sell all at -5% vs cost
-const TRAIL_ARM = 0.1; // trailing exit arms once up 10%
-const TRAIL_GIVEBACK = 0.15; // sell after giving back 15% from the peak
-const MAX_HOLD_TRADES = 200; // sell after this many trades with no exit hit
-const ENTRY_MIN_TRADES = 8; // need this many trades before considering a buy
+const MAX_OPEN_SELF = 3; // self-limit: at most 3 open positions, fewer churned trades
+const TAKE_PROFIT = 0.6; // sell all at +60% vs cost
+const STOP_LOSS = -0.15; // sell all at -15% vs cost
+const TRAIL_ARM = 0.25; // trailing exit arms once up 25%
+const TRAIL_GIVEBACK = 0.2; // sell after giving back 20% from the peak
+const MAX_HOLD_TRADES = 300; // sell after this many trades with no exit hit
+const ENTRY_MIN_TRADES = 12; // need this many trades before considering a buy
 const ENTRY_WINDOW = 6; // buy-pressure window, in recent trades
 const ENTRY_MIN_BUY_SHARE = 0.8; // at least 80% of recent SOL flow must be buys
-const ENTRY_MIN_PRICE_RATIO = 1.0; // price must be at or above its first price
+const ENTRY_MIN_PRICE_RATIO = 1.1; // price must be at least 10% above its first price
 const BUY_SLIPPAGE_BPS = 2000;
 const SELL_SLIPPAGE_BPS = 1000;
 const DRAWDOWN_PAUSE = 0.25; // stop new buys after a 25% portfolio drawdown
@@ -136,7 +137,9 @@ await runBot({
     const orders: Array<BuyInput | SellInput> = [];
     const txFee = state.txFeeLamports();
     let free = state.freeCashLamports();
-    let slots = state.hello.caps.max_open_positions - state.committedPositionCount();
+    // Self-limit open positions below the harness cap: long holds in a few
+    // coins beat churning the full five slots through losers after fees.
+    let slots = MAX_OPEN_SELF - state.committedPositionCount();
 
     // 2. Exits first: every held position is checked against the rules.
     // A sell that was rejected or failed leaves no pending sell order, so

@@ -12,13 +12,16 @@ hourly Sharpe ratio — steady, controlled gains beat one lucky moonshot.
 ## Strategy
 
 - **Early, filtered entry:** buy a fixed 0.05 SOL stake in a fresh bonding
-  curve only after at least 8 trades, with at least 80% of recent SOL flow
-  from buys, price at or above its first price, and at least 10 SOL
+  curve only after at least 12 trades, with at least 80% of recent SOL flow
+  from buys, price at least 10% above its first price, and at least 10 SOL
   of real reserves (so the 1%-of-reserve size cap allows a real stake).
   Each coin is decided once, in batch order.
-- **Rule-based exits:** take profit at +100%, stop loss at −5%, a trailing
-  exit after giving back 15% from a peak of +10% or more, and a time exit
-  after 200 trades with no move.
+- **Rule-based exits:** take profit at +60%, stop loss at −15%, a trailing
+  exit after giving back 20% from a peak of +25% or more, and a time exit
+  after 300 trades with no move.
+- **Few positions:** at most 3 open at once (below the harness cap of 5) —
+  dev grades showed churn after fees is what loses money, so this bot
+  trades few, proven coins and rides them.
 - **Risk limits:** at most 5 open positions, 10 SOL starting capital, and no
   new buys while the portfolio sits more than 25% below its peak.
 - **Deterministic:** no clock, environment, or `Math.random` — only the
