@@ -16,12 +16,11 @@ hourly Sharpe ratio — steady, controlled gains beat one lucky moonshot.
   from buys, price at least 10% above its first price, and at least 10 SOL
   of real reserves (so the 1%-of-reserve size cap allows a real stake).
   Each coin is decided once, in batch order.
-- **Rule-based exits:** take profit at +60%, stop loss at −15%, a trailing
-  exit after giving back 20% from a peak of +25% or more, and a time exit
-  after 300 trades with no move.
-- **Few positions:** at most 3 open at once (below the harness cap of 5) —
-  dev grades showed churn after fees is what loses money, so this bot
-  trades few, proven coins and rides them.
+- **Rule-based exits:** take profit at +35%, stop loss at −12%, a trailing
+  exit after giving back 15% from a peak of +15% or more, and a time exit
+  after 120 trades with no move.
+- **Risk limits:** at most 5 open positions, 10 SOL starting capital, and no
+  new buys while the portfolio sits more than 25% below its peak.
 - **Risk limits:** at most 5 open positions, 10 SOL starting capital, and no
   new buys while the portfolio sits more than 25% below its peak.
 - **Deterministic:** no clock, environment, or `Math.random` — only the
