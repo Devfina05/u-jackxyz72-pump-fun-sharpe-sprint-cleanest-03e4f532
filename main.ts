@@ -3,7 +3,7 @@
 // Idea, in my own words: buy a small, fixed stake in a fresh bonding curve
 // only after it has shown a little real life (a handful of trades, net buying
 // pressure, price not already collapsing), then exit on a rule, not on hope:
-// take profit at +35%, cut at -12%, trail the peak once it is up 15%, and
+// take profit at +60%, cut at -10%, trail the peak once it is up 25%, and
 // give up after a long hold with no move. Small stakes, at most five open
 // positions, and a portfolio-level pause on new buys after a 25% drawdown
 // keep the hourly Sharpe steady instead of chasing one moonshot.
@@ -28,14 +28,14 @@ import {
 
 // --- sizing and exits (all in lamports / ratios, no magic from outside) ---
 const STAKE_LAMPORTS = (LAMPORTS_PER_SOL * 4n) / 100n; // 0.04 SOL per coin
-const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 50n; // 0.02 SOL: below this, skip
-const MIN_REAL_SOL_LAMPORTS = LAMPORTS_PER_SOL * 3n; // curve needs >= 3 real SOL
-const TAKE_PROFIT = 0.35; // sell all at +35% vs cost
-const STOP_LOSS = -0.12; // sell all at -12% vs cost
-const TRAIL_ARM = 0.15; // trailing exit arms once up 15%
-const TRAIL_GIVEBACK = 0.15; // sell after giving back 15% from the peak
-const MAX_HOLD_TRADES = 120; // sell after this many trades with no exit hit
-const ENTRY_MIN_TRADES = 6; // need this many trades before considering a buy
+const MIN_STAKE_LAMPORTS = LAMPORTS_PER_SOL / 100n; // 0.01 SOL: below this, skip
+const MIN_REAL_SOL_LAMPORTS = (LAMPORTS_PER_SOL * 3n) / 2n; // curve needs >= 1.5 real SOL
+const TAKE_PROFIT = 0.6; // sell all at +60% vs cost
+const STOP_LOSS = -0.1; // sell all at -10% vs cost
+const TRAIL_ARM = 0.25; // trailing exit arms once up 25%
+const TRAIL_GIVEBACK = 0.2; // sell after giving back 20% from the peak
+const MAX_HOLD_TRADES = 200; // sell after this many trades with no exit hit
+const ENTRY_MIN_TRADES = 5; // need this many trades before considering a buy
 const ENTRY_WINDOW = 6; // buy-pressure window, in recent trades
 const ENTRY_MIN_BUY_SHARE = 0.5; // at least half of recent SOL flow must be buys
 const ENTRY_MAX_DROP = 0.9; // price must still be >= 90% of its first price
@@ -135,13 +135,25 @@ await runBot({
     let slots = state.hello.caps.max_open_positions - state.committedPositionCount();
 
     // 2. Exits first: every held position is checked against the rules.
+    // A sell that was rejected or failed leaves no pending sell order, so
+    // clear sellPending then and retry the exit on a later batch.
     for (const [mint, holding] of state.positions) {
       const track = tracks.get(mint);
       const curve = state.curves.get(mint);
       if (curve === undefined || curve.complete) continue;
       const price = priceOf(state, mint);
       if (price <= 0 || track === undefined || !track.bought) continue;
-      if (track.sellPending) continue;
+      if (track.sellPending) {
+        let sellInFlight = false;
+        for (const pending of state.pending.values()) {
+          if (pending.order.mint === mint && pending.order.side === "sell") {
+            sellInFlight = true;
+            break;
+          }
+        }
+        if (!sellInFlight) track.sellPending = false;
+        if (track.sellPending) continue;
+      }
       const cost = Number(holding.cost_lamports);
       if (cost <= 0) continue;
       const mark = Number(holding.token_amount) * price;
@@ -217,10 +229,28 @@ await runBot({
 
     // 5. Housekeeping: clear sellPending once the fill has landed (the
     // position is gone from state), and clear bought on a completed coin.
+    // A buy that was rejected or failed also leaves no position and no
+    // pending buy a few trades after the decision, so release that coin
+    // for a fresh entry decision instead of stranding it forever.
     for (const [mint, track] of tracks) {
       if (track.sellPending && !state.positions.has(mint)) {
         track.sellPending = false;
         track.bought = false;
+      }
+      if (track.bought && !state.positions.has(mint)) {
+        let buyInFlight = false;
+        for (const pending of state.pending.values()) {
+          if (pending.order.mint === mint && pending.order.side === "buy") {
+            buyInFlight = true;
+            break;
+          }
+        }
+        if (!buyInFlight && track.trades - track.buyTradeIndex >= 3) {
+          track.bought = false;
+          track.decided = false;
+          track.sellPending = false;
+          track.peakReturn = 0;
+        }
       }
     }
     return orders;
