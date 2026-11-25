@@ -44,7 +44,9 @@ const ENTRY_WINDOW = 6; // buy-pressure window, in recent trades
 const ENTRY_MIN_BUY_SHARE = 0.8; // at least 80% of recent SOL flow must be buys
 const ENTRY_MIN_PRICE_RATIO = 1.1; // price must be at least 10% above its first price
 const BUY_SLIPPAGE_BPS = 2000;
-const SELL_SLIPPAGE_BPS = 1000;
+const SELL_SLIPPAGE_BPS = 100; // tight on sells: only take the exit price if it
+// is still there after the 2-slot latency; a rejected sell is retried on the
+// next batch instead of filling into a dump at a much worse price.
 const DRAWDOWN_PAUSE = 0.25; // stop new buys after a 25% portfolio drawdown
 
 interface CoinTrack {
